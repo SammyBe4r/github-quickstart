@@ -1,8 +1,8 @@
-# Palworld Base Planner
+# Planejador de Base de Palworld
 
-Um projeto de estudo em Python, inspirado no planejamento de uma base em Palworld. O programa calcula os materiais necessários para fabricar itens e recomenda Pals para uma tarefa de acordo com seus níveis de aptidão.
+Projeto de estudo em Python inspirado no planejamento de uma base em Palworld. O programa calcula os materiais necessários para fabricar itens e recomenda Pals para cada tarefa de acordo com seus níveis de aptidão.
 
-> Os Pals e as receitas incluídos são exemplos fictícios para demonstrar os algoritmos. Edite os dados em `palworld_planner.py` para montar seu próprio cenário.
+> Os Pals e as receitas incluídos são exemplos fictícios para demonstrar os algoritmos. Edite os dados em `planejador_palworld.py` para montar seu próprio cenário.
 
 ## Funcionalidades
 
@@ -21,25 +21,25 @@ Um projeto de estudo em Python, inspirado no planejamento de uma base em Palworl
 No terminal, na pasta do projeto:
 
 ```bash
-python palworld_planner.py
+python planejador_palworld.py
 ```
 
-O exemplo padrão calcula os materiais para fabricar três unidades e recomenda trabalhadores para artesanato. Informe os materiais disponíveis usando `--inventory`:
+O exemplo padrão calcula os materiais para fabricar três unidades e recomenda trabalhadores para artesanato. Informe os materiais disponíveis usando `--inventario`:
 
 ```bash
-python palworld_planner.py --quantity 5 --inventory madeira=6 --inventory pedra=2
+python planejador_palworld.py --quantidade 5 --inventario madeira=6 --inventario pedra=2
 ```
 
-Cada `--inventory` recebe um recurso no formato `nome=quantidade`. Para ver as opções:
+Cada `--inventario` recebe um recurso no formato `nome=quantidade`. Para ver as opções:
 
 ```bash
-python palworld_planner.py --help
+python planejador_palworld.py --ajuda
 ```
 
 ## Exemplo de saída
 
 ```text
-=== Planejador de base Palworld ===
+=== Planejador de base de Palworld ===
 Receita: kit de construção
 Unidades desejadas: 3
 
@@ -54,7 +54,7 @@ Pals recomendados para artesanato:
 
 ## Algoritmos e decisões técnicas
 
-1. **Cálculo de lotes:** usa divisão com arredondamento para cima (`ceil`). Se uma receita produz duas unidades por lote e o jogador pede três, o programa calcula dois lotes e multiplica os materiais por dois.
+1. **Cálculo de lotes:** usa divisão com arredondamento para cima (`math.ceil`). Se uma receita produz duas unidades por lote e o jogador pede três, o programa calcula dois lotes e multiplica os materiais por dois.
 2. **Cálculo de faltas:** para cada material da receita, subtrai o inventário da quantidade necessária e limita o resultado mínimo a zero.
 3. **Recomendação de trabalhadores:** filtra quem tem aptidão positiva para a tarefa e ordena por nível decrescente. Em caso de empate, usa o nome em ordem alfabética para manter o resultado previsível.
 4. **Separação em funções:** os cálculos ficam em funções reutilizáveis, independentes da interface de terminal, o que facilita testar e evoluir o projeto.
@@ -73,7 +73,7 @@ python -m unittest -v
 
 ```text
 .
-├── palworld_planner.py
-├── test_palworld_planner.py
+├── planejador_palworld.py
+├── test_planejador_palworld.py
 └── README.md
 ```
