@@ -213,6 +213,42 @@ Portal Pandora usa seu próprio aplicativo Discord, o Project Sphere não recebe
 comandos automaticamente, e o PalDefender/Creative Menu precisam ser instalados e
 configurados manualmente conforme a Oficina/mod e as permissões do provedor.
 
+## Créditos e atribuições
+
+Este projeto foi desenvolvido por **Samuel Oliveira**, com assistência do **GitHub
+Copilot** para apoiar implementação, documentação e testes. O código específico do
+planejador, configurador, agenda de eventos e Portal Pandora foi criado para este
+repositório; as ferramentas de terceiros abaixo mantêm seus próprios autores, marcas,
+termos e licenças.
+
+- **DIO / GitHub Quick Start:** desafio educacional e repositório-base que inspiraram
+  este trabalho: [digitalinnovationone/github-quickstart](https://github.com/digitalinnovationone/github-quickstart).
+- **Palworld / Pocketpair:** jogo, servidor dedicado, nomes e demais marcas pertencem
+  aos respectivos titulares. O projeto não é oficial nem afiliado à Pocketpair.
+  Referências: [documentação oficial da API](https://docs.palworldgame.com/) e
+  [página do Palworld na Steam](https://store.steampowered.com/app/1623730/Palworld/).
+- **Valve / SteamCMD:** ferramenta oficial usada para baixar e atualizar o servidor
+  dedicado: [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD).
+- **Python e bibliotecas:** [Python](https://www.python.org/), [Flask](https://flask.palletsprojects.com/),
+  [discord.py](https://discordpy.readthedocs.io/), [python-dotenv](https://github.com/theskumar/python-dotenv)
+  e [Gunicorn](https://gunicorn.org/). O Tkinter faz parte da distribuição padrão
+  do Python usada no Windows.
+- **Discord:** serviço de autenticação OAuth e plataforma do bot; sujeito aos
+  [termos para desenvolvedores](https://discord.com/developers/docs/policies-and-agreements/terms-of-service).
+- **Mercado Pago:** serviço externo de Checkout Pro e notificações de pagamento;
+  sujeito aos [termos e condições aplicáveis](https://www.mercadopago.com.br/ajuda/termos-e-condicoes_299).
+- **Project Sphere:** projeto comunitário separado, opcional e não incluído neste
+  repositório: [projectsphere/sphere](https://github.com/projectsphere/sphere).
+- **PalDefender:** plugin comunitário separado, opcional e não incluído neste
+  repositório: [página do projeto](https://www.nexusmods.com/palworld/mods/451) e
+  [guia de instalação](https://ultimeit.github.io/PalDefender/).
+- **Creative Menu:** mod da Oficina Steam, separado e opcional, sujeito às regras e
+  instruções do autor: [página do item](https://steamcommunity.com/sharedfiles/filedetails/?id=3625287786).
+
+Esses créditos não implicam endosso, parceria ou inclusão dos produtos externos no
+aplicativo. Consulte as licenças e os termos de cada titular antes de redistribuir,
+modificar ou usar os respectivos serviços e complementos.
+
 ## Testes
 
 Para executar também os testes do Portal Pandora, instale os pacotes descritos em
