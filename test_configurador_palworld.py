@@ -2,7 +2,10 @@
 
 import unittest
 
-from configurador_palworld import gerar_pal_world_settings
+from configurador_palworld import (
+    gerar_configuracao_portal_hospedagem,
+    gerar_pal_world_settings,
+)
 
 
 MODELO = (
@@ -63,6 +66,27 @@ class TesteGeracaoConfiguracao(unittest.TestCase):
     def test_valida_intervalo_da_porta_api(self) -> None:
         with self.assertRaisesRegex(ValueError, "porta da API REST"):
             self.gerar(porta_api_rest=70000)
+
+    def test_exporta_enderecos_do_portal_sem_segredos(self) -> None:
+        resultado = gerar_configuracao_portal_hospedagem(
+            "https://portal.example.com",
+            "http://10.0.0.12:8212",
+        )
+        self.assertIn("PORTAL_PUBLIC_URL=https://portal.example.com", resultado)
+        self.assertIn("PALWORLD_API_URL=http://10.0.0.12:8212", resultado)
+        self.assertNotIn("PASSWORD", resultado)
+        self.assertNotIn("TOKEN", resultado)
+
+    def test_portal_hospedado_exige_https(self) -> None:
+        with self.assertRaisesRegex(ValueError, "HTTPS"):
+            gerar_configuracao_portal_hospedagem("http://portal.example.com")
+
+    def test_nao_exporta_api_publica_para_o_portal(self) -> None:
+        with self.assertRaisesRegex(ValueError, "exposta à Internet"):
+            gerar_configuracao_portal_hospedagem(
+                "https://portal.example.com",
+                "http://8.8.8.8:8212",
+            )
 
 
 if __name__ == "__main__":

@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import queue
 import shutil
 import signal
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import tkinter as tk
 from datetime import datetime, timedelta
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 import webbrowser
 
+from instalador_servidor import instalar_servidor_palworld, preparar_steamcmd
 from eventos_palworld import (
     FREQUENCIAS,
     TIPOS_EVENTO,
@@ -51,11 +54,53 @@ CAMINHO_EVENTOS = Path(
     "ConfiguradorPalworld",
     "eventos.json",
 )
+PASTA_DADOS_APP = Path(
+    os.environ.get(
+        "LOCALAPPDATA",
+        str(Path.home() / "AppData" / "Local"),
+    ),
+    "ConfiguradorPalworld",
+)
+CAMINHO_SERVIDOR_PADRAO = PASTA_DADOS_APP / "PalServer"
+CAMINHO_STEAMCMD = PASTA_DADOS_APP / "SteamCMD"
+URL_PORTAL_LOCAL = "http://127.0.0.1"
 PASTAS_SERVIDOR_COMUNS = (
+    CAMINHO_SERVIDOR_PADRAO,
     Path(r"C:\SteamLibrary\steamapps\common\PalServer"),
     Path(r"C:\Program Files (x86)\Steam\steamapps\common\PalServer"),
     Path(r"C:\Program Files\Steam\steamapps\common\PalServer"),
 )
+
+
+def gerar_configuracao_portal_hospedagem(
+    url_publica: str, url_api_privada: str = ""
+) -> str:
+    origem = urlsplit(url_publica.strip())
+    if (
+        origem.scheme != "https"
+        or not origem.hostname
+        or origem.username
+        or origem.password
+        or origem.path not in ("", "/")
+        or origem.query
+        or origem.fragment
+    ):
+        raise ValueError("O endereço público do portal precisa ser uma origem HTTPS válida.")
+    try:
+        origem.port
+    except ValueError as erro:
+        raise ValueError("A porta do endereço público do portal é inválida.") from erro
+
+    linhas = [
+        "# Configuração não secreta do Portal Pandora para o provedor.",
+        "# Cadastre credenciais e senhas no cofre de segredos do provedor.",
+        f"PORTAL_PUBLIC_URL={origem.scheme}://{origem.netloc}",
+    ]
+    endereco_api = url_api_privada.strip()
+    if endereco_api:
+        ClienteRESTPalworld(endereco_api, "validacao-local")
+        linhas.append(f"PALWORLD_API_URL={endereco_api.rstrip('/')}")
+    return "\n".join(linhas) + "\n"
 
 
 def encontrar_servidor() -> Path | None:
@@ -259,7 +304,7 @@ class ConfiguradorPalworld:
         self.janela.title("Servidor dedicado de Palworld")
         self.janela.minsize(800, 760)
         self.pasta_servidor = tk.StringVar(
-            value=str(encontrar_servidor() or Path.home())
+            value=str(encontrar_servidor() or CAMINHO_SERVIDOR_PADRAO)
         )
         self.nome_servidor = tk.StringVar(value="Servidor dos Amigos")
         self.descricao_servidor = tk.StringVar(value="Servidor privado")
@@ -287,8 +332,17 @@ class ConfiguradorPalworld:
         self.status = tk.StringVar(value="Servidor parado")
         self._processo: subprocess.Popen[bytes] | None = None
         self._arquivo_log = None
+        self._fila_instalacao: queue.Queue[tuple[str, str]] = queue.Queue()
+        self._instalacao_em_andamento = False
         self._processo_sphere: subprocess.Popen[bytes] | None = None
         self._arquivo_log_sphere = None
+        self.portal_public_url = tk.StringVar(value="https://SEU-DOMINIO")
+        self.portal_api_url = tk.StringVar()
+        self.portal_porta = tk.StringVar(value="5000")
+        self.status_portal = tk.StringVar(value="Portal Pandora parado.")
+        self._processo_portal: subprocess.Popen[bytes] | None = None
+        self._arquivo_log_portal = None
+        self._portal_aberto = False
         self.caminho_eventos = caminho_eventos
         try:
             self.eventos = carregar_eventos(self.caminho_eventos)
@@ -327,14 +381,17 @@ class ConfiguradorPalworld:
         aba_externa = ttk.Frame(abas, padding=14)
         aba_eventos = ttk.Frame(abas, padding=14)
         aba_admin = ttk.Frame(abas, padding=14)
+        aba_portal = ttk.Frame(abas, padding=14)
         abas.add(aba_local, text="Meu PC")
         abas.add(aba_externa, text="Outra hospedagem")
         abas.add(aba_eventos, text="Eventos")
         abas.add(aba_admin, text="Administração")
+        abas.add(aba_portal, text="Portal Pandora")
         self._montar_aba_local(aba_local)
         self._montar_aba_externa(aba_externa)
         self._montar_aba_eventos(aba_eventos)
         self._montar_aba_administracao(aba_admin)
+        self._montar_aba_portal(aba_portal)
 
         ttk.Label(raiz, textvariable=self.status).grid(
             row=3, column=0, sticky="w", pady=(10, 0)
@@ -402,9 +459,15 @@ class ConfiguradorPalworld:
 
         botoes = ttk.Frame(aba)
         botoes.grid(row=13, column=0, columnspan=3, sticky="ew", pady=8)
+        self.botao_instalar_servidor = ttk.Button(
+            botoes,
+            text="Instalar/atualizar servidor",
+            command=self._instalar_servidor,
+        )
+        self.botao_instalar_servidor.pack(side="left")
         ttk.Button(
             botoes, text="Salvar configuração", command=self._salvar_local
-        ).pack(side="left")
+        ).pack(side="left", padx=(8, 0))
         ttk.Button(
             botoes, text="Iniciar servidor", command=self._iniciar_servidor
         ).pack(side="left", padx=8)
@@ -434,6 +497,70 @@ class ConfiguradorPalworld:
             wraplength=680,
             justify="left",
         ).grid(row=15, column=0, columnspan=3, sticky="w", pady=(8, 0))
+
+    def _montar_aba_portal(self, aba: ttk.Frame) -> None:
+        aba.columnconfigure(1, weight=1)
+        ttk.Label(
+            aba,
+            text=(
+                "Inicie e abra o Portal Pandora neste computador ou prepare os "
+                "endereços para publicar o site em uma hospedagem."
+            ),
+            wraplength=700,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 10))
+        self._adicionar_campo(
+            aba, 1, "Porta do portal local:", self.portal_porta
+        )
+        botoes_local = ttk.Frame(aba)
+        botoes_local.grid(row=2, column=0, columnspan=3, sticky="w", pady=5)
+        ttk.Button(
+            botoes_local, text="Iniciar e abrir site local", command=self._iniciar_portal
+        ).pack(side="left")
+        self.botao_parar_portal = ttk.Button(
+            botoes_local,
+            text="Parar site local",
+            command=self._parar_portal,
+            state="disabled",
+        )
+        self.botao_parar_portal.pack(side="left", padx=8)
+        ttk.Label(aba, textvariable=self.status_portal).grid(
+            row=3, column=0, columnspan=3, sticky="w", pady=(3, 10)
+        )
+
+        hospedagem = ttk.LabelFrame(
+            aba, text="Vincular o site a uma hospedagem", padding=8
+        )
+        hospedagem.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(4, 0))
+        hospedagem.columnconfigure(1, weight=1)
+        ttk.Label(hospedagem, text="Endereço público HTTPS do site:").grid(
+            row=0, column=0, sticky="w", pady=4
+        )
+        ttk.Entry(hospedagem, textvariable=self.portal_public_url).grid(
+            row=0, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=4
+        )
+        ttk.Label(hospedagem, text="API privada do servidor Palworld:").grid(
+            row=1, column=0, sticky="w", pady=4
+        )
+        ttk.Entry(hospedagem, textvariable=self.portal_api_url).grid(
+            row=1, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=4
+        )
+        ttk.Button(
+            hospedagem,
+            text="Exportar configuração para o host...",
+            command=self._exportar_configuracao_portal,
+        ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(8, 4))
+        ttk.Label(
+            hospedagem,
+            text=(
+                "O arquivo exportado contém somente endereços, nunca senhas ou tokens. "
+                "Cadastre os segredos no provedor. Para ligar o portal hospedado ao "
+                "jogo, use uma VPN/rede privada; não exponha REST/RCON publicamente. "
+                "A hospedagem precisa aceitar Python/Docker e armazenamento persistente."
+            ),
+            wraplength=690,
+            justify="left",
+        ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(4, 0))
 
     def _montar_aba_externa(self, aba: ttk.Frame) -> None:
         aba.columnconfigure(0, weight=1)
@@ -1271,6 +1398,73 @@ class ConfiguradorPalworld:
         if pasta:
             self.pasta_servidor.set(pasta)
 
+    def _instalar_servidor(self) -> None:
+        if self._instalacao_em_andamento:
+            return
+        pasta = Path(self.pasta_servidor.get()).expanduser()
+        if not messagebox.askyesno(
+            "Instalar servidor Palworld",
+            "O aplicativo baixará o SteamCMD oficial da Valve e vários GB do "
+            "servidor dedicado Palworld.\n\n"
+            f"Pasta de instalação:\n{pasta}\n\n"
+            "Se já houver uma instalação, faça uma cópia dos arquivos de mundo "
+            "antes de atualizar. Deseja continuar?",
+        ):
+            return
+
+        self._instalacao_em_andamento = True
+        self.botao_instalar_servidor.configure(state="disabled")
+        self.status.set("Preparando a instalação...")
+        threading.Thread(
+            target=self._executar_instalacao_servidor,
+            args=(pasta,),
+            daemon=True,
+        ).start()
+        self.janela.after(200, self._verificar_fila_instalacao)
+
+    def _executar_instalacao_servidor(self, pasta: Path) -> None:
+        try:
+            steamcmd = preparar_steamcmd(
+                CAMINHO_STEAMCMD,
+                lambda mensagem: self._fila_instalacao.put(("mensagem", mensagem)),
+            )
+            instalar_servidor_palworld(
+                steamcmd,
+                pasta,
+                lambda mensagem: self._fila_instalacao.put(("mensagem", mensagem)),
+            )
+        except Exception as erro:
+            self._fila_instalacao.put(("erro", str(erro)))
+        else:
+            self._fila_instalacao.put(("concluido", str(pasta)))
+
+    def _verificar_fila_instalacao(self) -> None:
+        try:
+            while True:
+                tipo, mensagem = self._fila_instalacao.get_nowait()
+                if tipo == "mensagem":
+                    self.status.set(f"Instalação: {mensagem}")
+                else:
+                    self._instalacao_em_andamento = False
+                    self.botao_instalar_servidor.configure(state="normal")
+                    if tipo == "concluido":
+                        self.pasta_servidor.set(mensagem)
+                        self.status.set(f"Servidor instalado em {mensagem}")
+                        messagebox.showinfo(
+                            "Instalação concluída",
+                            "O servidor dedicado foi instalado/atualizado. "
+                            "Configure suas opções e use “Iniciar servidor”.",
+                        )
+                    else:
+                        self.status.set("Falha na instalação do servidor.")
+                        messagebox.showerror(
+                            "Falha na instalação", mensagem or "Erro não identificado."
+                        )
+        except queue.Empty:
+            pass
+        if self._instalacao_em_andamento:
+            self.janela.after(200, self._verificar_fila_instalacao)
+
     def _obter_valores(self) -> tuple[str, str, int, int, str, str, list[str]]:
         try:
             jogadores = int(self.quantidade_jogadores.get())
@@ -1348,6 +1542,157 @@ class ConfiguradorPalworld:
         if backup:
             self.status.set(f"Configuração salva. Cópia anterior: {backup.name}")
         return True
+
+    def _iniciar_portal(self) -> None:
+        processo = self._processo_portal
+        if processo is not None and processo.poll() is None:
+            messagebox.showinfo("Portal Pandora", "O portal já está em execução.")
+            return
+        try:
+            porta = int(self.portal_porta.get())
+        except ValueError:
+            messagebox.showerror("Porta inválida", "Informe uma porta entre 1 e 65535.")
+            return
+        if not 1 <= porta <= 65535:
+            messagebox.showerror("Porta inválida", "Informe uma porta entre 1 e 65535.")
+            return
+
+        endereco_api = ""
+        if self.api_rest_ativada.get():
+            endereco_api = self.portal_api_url.get().strip() or (
+                f"http://127.0.0.1:{self.porta_api_rest.get().strip()}"
+            )
+            try:
+                ClienteRESTPalworld(endereco_api, self.senha_administrador.get())
+            except ValueError as erro:
+                messagebox.showerror("Conexão privada inválida", str(erro))
+                return
+
+        raiz_projeto = Path(__file__).resolve().parent
+        script_portal = raiz_projeto / "portal_palworld.py"
+        if not script_portal.is_file():
+            messagebox.showerror(
+                "Portal não encontrado", f"Não encontrei o arquivo:\n{script_portal}"
+            )
+            return
+        try:
+            PASTA_DADOS_APP.mkdir(parents=True, exist_ok=True)
+            self._arquivo_log_portal = (PASTA_DADOS_APP / "PortalPandora.log").open("ab")
+            ambiente = os.environ.copy()
+            ambiente.update(
+                {
+                    "PORTAL_HOST": "127.0.0.1",
+                    "PORTAL_PORT": str(porta),
+                    "PORTAL_PUBLIC_URL": f"{URL_PORTAL_LOCAL}:{porta}",
+                    "PALWORLD_API_URL": endereco_api,
+                    "PALWORLD_ADMIN_PASSWORD": (
+                        self.senha_administrador.get() if endereco_api else ""
+                    ),
+                }
+            )
+            opcoes = {
+                "cwd": raiz_projeto,
+                "env": ambiente,
+                "stdout": self._arquivo_log_portal,
+                "stderr": subprocess.STDOUT,
+                "stdin": subprocess.DEVNULL,
+            }
+            if os.name == "nt":
+                opcoes["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            self._processo_portal = subprocess.Popen(
+                [sys.executable, "-u", str(script_portal)], **opcoes
+            )
+        except OSError as erro:
+            if self._arquivo_log_portal:
+                self._arquivo_log_portal.close()
+                self._arquivo_log_portal = None
+            messagebox.showerror("Falha ao iniciar Portal Pandora", str(erro))
+            return
+        self.status_portal.set(
+            f"Iniciando em {URL_PORTAL_LOCAL}:{porta}..."
+        )
+        self.botao_parar_portal.configure(state="normal")
+        self.janela.after(1500, self._verificar_portal)
+
+    def _verificar_portal(self) -> None:
+        processo = self._processo_portal
+        if processo is None:
+            return
+        codigo_saida = processo.poll()
+        if codigo_saida is not None:
+            self._finalizar_portal()
+            self.status_portal.set(
+                f"O portal encerrou com código {codigo_saida}. Consulte o registro."
+            )
+            return
+        try:
+            porta = int(self.portal_porta.get())
+        except ValueError:
+            porta = 5000
+        endereco = f"{URL_PORTAL_LOCAL}:{porta}"
+        self.status_portal.set(f"Portal Pandora em execução: {endereco}")
+        if not self._portal_aberto:
+            self._portal_aberto = True
+            webbrowser.open(endereco)
+        self.janela.after(5000, self._verificar_portal)
+
+    def _parar_portal(self) -> None:
+        processo = self._processo_portal
+        if processo is None or processo.poll() is not None:
+            self._finalizar_portal()
+            return
+        if not messagebox.askyesno(
+            "Parar Portal Pandora", "Deseja parar o site neste computador?"
+        ):
+            return
+        processo.terminate()
+        self.status_portal.set("Parando Portal Pandora...")
+        self.janela.after(500, self._aguardar_portal, processo)
+
+    def _aguardar_portal(self, processo: subprocess.Popen[bytes]) -> None:
+        if processo.poll() is None:
+            self.janela.after(500, self._aguardar_portal, processo)
+            return
+        self._finalizar_portal()
+        self.status_portal.set("Portal Pandora parado.")
+
+    def _finalizar_portal(self) -> None:
+        self._processo_portal = None
+        self._portal_aberto = False
+        self.botao_parar_portal.configure(state="disabled")
+        if self._arquivo_log_portal:
+            self._arquivo_log_portal.close()
+            self._arquivo_log_portal = None
+
+    def _exportar_configuracao_portal(self) -> None:
+        try:
+            conteudo = gerar_configuracao_portal_hospedagem(
+                self.portal_public_url.get(), self.portal_api_url.get()
+            )
+        except ValueError as erro:
+            messagebox.showerror("Configuração inválida", str(erro))
+            return
+        destino = filedialog.asksaveasfilename(
+            title="Salvar configuração do Portal Pandora para hospedagem",
+            defaultextension=".env",
+            filetypes=[("Configuração de ambiente", "*.env"), ("Todos os arquivos", "*.*")],
+            initialfile="portal-pandora-host.env",
+        )
+        if not destino:
+            return
+        try:
+            backup = gravar_configuracao_segura(Path(destino), conteudo)
+        except OSError as erro:
+            messagebox.showerror("Falha ao exportar configuração", str(erro))
+            return
+        mensagem = (
+            f"Configuração de endereços salva em:\n{destino}\n\n"
+            "Cadastre os segredos do Discord, Mercado Pago e a senha da API "
+            "privada no cofre de segredos do provedor."
+        )
+        if backup:
+            mensagem += f"\n\nCópia anterior: {backup.name}"
+        messagebox.showinfo("Configuração exportada", mensagem)
 
     def _iniciar_servidor(self) -> None:
         if self._processo is not None and self._processo.poll() is None:
@@ -1534,17 +1879,29 @@ class ConfiguradorPalworld:
         os.startfile(pasta)
 
     def _ao_fechar(self) -> None:
+        if self._instalacao_em_andamento:
+            messagebox.showinfo(
+                "Instalação em andamento",
+                "Mantenha o configurador aberto até a instalação do servidor terminar.",
+            )
+            return
         servidor_ativo = self._processo is not None and self._processo.poll() is None
         bot_ativo = (
             self._processo_sphere is not None
             and self._processo_sphere.poll() is None
         )
-        if servidor_ativo or bot_ativo:
+        portal_ativo = (
+            self._processo_portal is not None
+            and self._processo_portal.poll() is None
+        )
+        if servidor_ativo or bot_ativo or portal_ativo:
             processos = []
             if servidor_ativo:
                 processos.append("o servidor Palworld")
             if bot_ativo:
                 processos.append("o bot do Discord")
+            if portal_ativo:
+                processos.append("o Portal Pandora")
             verbo = "continuarão" if len(processos) > 1 else "continuará"
             fechar = messagebox.askyesno(
                 "Serviços em execução",
@@ -1559,6 +1916,9 @@ class ConfiguradorPalworld:
         if self._arquivo_log_sphere:
             self._arquivo_log_sphere.close()
             self._arquivo_log_sphere = None
+        if self._arquivo_log_portal:
+            self._arquivo_log_portal.close()
+            self._arquivo_log_portal = None
         self.janela.destroy()
 
 

@@ -66,7 +66,7 @@ O GitHub Copilot pode apoiar a exploração de alternativas, a escrita de testes
 O configurador abre uma janela com abas para o servidor local, hospedagem externa,
 eventos e administração:
 
-- **Meu PC:** selecione a pasta que contém `PalServer.exe`, configure nome, descrição, limite de jogadores, porta UDP, senhas e plataformas permitidas. Salve a configuração e inicie ou pare o servidor pela janela. Uma cópia de segurança é criada antes de substituir uma configuração existente.
+- **Meu PC:** instale ou atualize o servidor dedicado pelo SteamCMD oficial da Valve, ou selecione uma instalação existente. Configure nome, descrição, limite de jogadores, porta UDP, senhas e plataformas; salve e inicie ou pare o servidor pela janela. A instalação baixa vários GB e não abre portas do Firewall nem altera o roteador.
 - **Outra hospedagem:** exporte `PalWorldSettings.ini` e use as informações de porta, jogadores e caminho esperadas pelo seu provedor. O arquivo pode conter senhas; envie-o somente por um canal seguro.
 - **Eventos:** organize uma agenda de invasões, chefes, recorrência e prêmios. O configurador avisa quando o horário chega; invocação e distribuição continuam manuais pelo mod.
 - **Administração:** com a API REST ativada, consulte jogadores online, anuncie mensagens, expulse ou bane jogadores, remova banimentos, salve o mundo e agende o desligamento. Por segurança, a conexão direta do app aceita apenas localhost ou endereços IP privados.
@@ -79,7 +79,9 @@ Para abrir no Windows, dê dois cliques em `INICIAR_CONFIGURADOR.bat`. Também �
 python configurador_palworld.py
 ```
 
-O programa usa o servidor dedicado Palworld instalado pela Steam. Ele não instala o jogo, não altera o Firewall do Windows nem configura o roteador. Para amigos fora da rede local, permita a porta UDP do jogo no firewall e encaminhe a mesma porta no roteador para o IP local do computador. A aba **Meu PC** mostra os endereços de rede que consegue detectar.
+Na primeira instalação, abra **Meu PC**, confirme a pasta de destino e selecione **Instalar/atualizar servidor**. O aplicativo baixa o SteamCMD oficial e instala o Palworld Dedicated Server por login anônimo; não é necessário possuir ou manter o jogo cliente aberto. A mesma ação atualiza uma instalação existente. Faça cópia dos arquivos do mundo antes de atualizar. Depois, configure e use **Iniciar servidor**. O executável, os arquivos do mundo e os registros ficam na pasta escolhida.
+
+O aplicativo não altera o Firewall do Windows nem configura o roteador. Para amigos fora da rede local, permita a porta UDP do jogo no firewall e encaminhe a mesma porta no roteador para o IP local do computador. A aba **Meu PC** mostra os endereços de rede que consegue detectar.
 
 As plataformas selecionadas são gravadas em `CrossplayPlatforms`; o acesso entre plataformas também depende do suporte e da versão do jogo para cada plataforma. Confirme a compatibilidade antes de compartilhar o endereço do servidor.
 
@@ -112,12 +114,21 @@ reutiliza imagens ou personagens de outras franquias.
    não tiver o pip instalado, execute antes `py -3 -m ensurepip --upgrade`.
 3. Copie `.env.example` para `.env` e preencha as configurações do Discord e do Mercado
    Pago. O arquivo `.env` está ignorado pelo Git e não deve ser compartilhado.
-4. Execute `INICIAR_PORTAL.bat` para abrir o site local e `INICIAR_BOT_PORTAL.bat` em
-   outra janela para habilitar os comandos da equipe.
+4. No configurador Windows, abra a aba **Portal Pandora** e use **Iniciar e abrir site local**. Também é possível executar `INICIAR_PORTAL.bat`. Para habilitar os comandos da equipe, execute `INICIAR_BOT_PORTAL.bat` em outra janela.
 
-O site local fica em `http://127.0.0.1:5000` e é acessível apenas no próprio computador
-por padrão. O banco SQLite e os dados ficam no caminho configurado por
-`PORTAL_DATABASE_PATH`.
+O site local fica em `http://127.0.0.1:5000` por padrão e é acessível apenas no próprio
+computador. O configurador inicia e para o processo local do portal e abre o navegador.
+Se a API REST estiver ativa na aba **Meu PC**, o portal local usa a senha administrativa
+informada na interface e o endereço privado configurado. O banco SQLite e os dados ficam
+no caminho configurado por `PORTAL_DATABASE_PATH`.
+
+Na aba **Portal Pandora**, informe a origem HTTPS pública e, opcionalmente, o endereço
+privado da API do servidor. **Exportar configuração para o host** cria um arquivo com
+somente `PORTAL_PUBLIC_URL` e `PALWORLD_API_URL`, sem senhas ou tokens, para cadastrar
+no provedor. A implantação do site continua sendo feita no provedor com Docker/Python;
+cadastre os segredos Discord/Mercado Pago e `PALWORLD_ADMIN_PASSWORD` no cofre de
+segredos da hospedagem. O host precisa alcançar o servidor por uma VPN/rede privada
+compatível. O app não envia arquivos, segredos ou comandos administrativos ao provedor.
 
 ### Hospedar em um provedor
 
