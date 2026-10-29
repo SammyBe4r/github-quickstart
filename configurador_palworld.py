@@ -8,11 +8,14 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import tkinter as tk
 from datetime import datetime, timedelta
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+from urllib.parse import quote
+import webbrowser
 
 from eventos_palworld import (
     FREQUENCIAS,
@@ -23,6 +26,7 @@ from eventos_palworld import (
     processar_agenda,
     salvar_eventos,
 )
+from palworld_admin import ClienteRESTPalworld, ErroAPIPalworld
 
 
 NOME_CONFIGURACAO = "PalWorldSettings.ini"
@@ -34,6 +38,11 @@ PORTA_PADRAO = 8211
 JOGADORES_PADRAO = 10
 JOGADORES_MAXIMO = 32
 PLATAFORMAS = ("Steam", "Xbox", "PS5", "Mac")
+PORTA_REST_PADRAO = 8212
+URL_SPHERE_RELEASES = "https://github.com/projectsphere/sphere/releases"
+URL_DISCORD_DEVELOPER = "https://discord.com/developers/applications"
+URL_PALDEFENDER = "https://www.nexusmods.com/palworld/mods/451"
+URL_PALDEFENDER_GUIA = "https://ultimeit.github.io/PalDefender/"
 CAMINHO_EVENTOS = Path(
     os.environ.get(
         "LOCALAPPDATA",
@@ -147,8 +156,22 @@ def gerar_pal_world_settings(
     senha_servidor: str,
     senha_administrador: str,
     plataformas: list[str] | tuple[str, ...],
+    api_rest_ativada: bool = False,
+    porta_api_rest: int = PORTA_REST_PADRAO,
+    rcon_ativado: bool = False,
+    porta_rcon: int = 25575,
 ) -> str:
     validar_configuracao(nome, quantidade_jogadores, porta, plataformas)
+    if isinstance(porta_api_rest, bool) or not isinstance(porta_api_rest, int) or not 1 <= porta_api_rest <= 65535:
+        raise ValueError("A porta da API REST precisa estar entre 1 e 65535.")
+    if isinstance(porta_rcon, bool) or not isinstance(porta_rcon, int) or not 1 <= porta_rcon <= 65535:
+        raise ValueError("A porta RCON precisa estar entre 1 e 65535.")
+    if api_rest_ativada and rcon_ativado and porta_api_rest == porta_rcon:
+        raise ValueError("A API REST e o RCON precisam usar portas diferentes.")
+    if (api_rest_ativada or rcon_ativado) and not senha_administrador:
+        raise ValueError(
+            "Defina uma senha de administrador antes de ativar a API REST ou o RCON."
+        )
     if "\n" in descricao or "\r" in descricao:
         raise ValueError("A descrição não pode conter quebras de linha.")
     if any("\n" in senha or "\r" in senha for senha in (senha_servidor, senha_administrador)):
@@ -165,6 +188,10 @@ def gerar_pal_world_settings(
             "AdminPassword": _formatar_texto_ini(senha_administrador),
             "bIsMultiplay": "True",
             "CrossplayPlatforms": f"({','.join(plataformas)})",
+            "RESTAPIEnabled": str(api_rest_ativada),
+            "RESTAPIPort": str(porta_api_rest),
+            "RCONEnabled": str(rcon_ativado),
+            "RCONPort": str(porta_rcon),
         }
     )
     linha_opcoes = "OptionSettings=(" + ",".join(
@@ -240,12 +267,28 @@ class ConfiguradorPalworld:
         self.porta = tk.StringVar(value=str(PORTA_PADRAO))
         self.senha_servidor = tk.StringVar()
         self.senha_administrador = tk.StringVar()
+        self.api_rest_ativada = tk.BooleanVar(value=False)
+        self.porta_api_rest = tk.StringVar(value=str(PORTA_REST_PADRAO))
+        self.rcon_ativado = tk.BooleanVar(value=False)
+        self.porta_rcon = tk.StringVar(value="25575")
+        self.endereco_api = tk.StringVar(value="http://127.0.0.1")
+        self.status_api = tk.StringVar(
+            value="API local: configure a senha de administrador e salve a configuração."
+        )
+        self.mensagem_admin = tk.StringVar()
+        self.alvo_admin = tk.StringVar()
+        self.pasta_sphere = tk.StringVar()
+        self.sphere_app_id = tk.StringVar()
+        self.sphere_token = tk.StringVar()
+        self.sphere_prefixo = tk.StringVar(value="!")
         self.plataformas_ativas = {
             plataforma: tk.BooleanVar(value=True) for plataforma in PLATAFORMAS
         }
         self.status = tk.StringVar(value="Servidor parado")
         self._processo: subprocess.Popen[bytes] | None = None
         self._arquivo_log = None
+        self._processo_sphere: subprocess.Popen[bytes] | None = None
+        self._arquivo_log_sphere = None
         self.caminho_eventos = caminho_eventos
         try:
             self.eventos = carregar_eventos(self.caminho_eventos)
@@ -283,12 +326,15 @@ class ConfiguradorPalworld:
         aba_local = ttk.Frame(abas, padding=14)
         aba_externa = ttk.Frame(abas, padding=14)
         aba_eventos = ttk.Frame(abas, padding=14)
+        aba_admin = ttk.Frame(abas, padding=14)
         abas.add(aba_local, text="Meu PC")
         abas.add(aba_externa, text="Outra hospedagem")
         abas.add(aba_eventos, text="Eventos")
+        abas.add(aba_admin, text="Administração")
         self._montar_aba_local(aba_local)
         self._montar_aba_externa(aba_externa)
         self._montar_aba_eventos(aba_eventos)
+        self._montar_aba_administracao(aba_admin)
 
         ttk.Label(raiz, textvariable=self.status).grid(
             row=3, column=0, sticky="w", pady=(10, 0)
@@ -339,9 +385,23 @@ class ConfiguradorPalworld:
             ),
             wraplength=680,
         ).grid(row=8, column=0, columnspan=3, sticky="w", pady=(4, 8))
+        ttk.Checkbutton(
+            aba,
+            text="Ativar API REST local para administração pelo app",
+            variable=self.api_rest_ativada,
+        ).grid(row=9, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        self._adicionar_campo(
+            aba, 10, "Porta da API REST:", self.porta_api_rest
+        )
+        ttk.Checkbutton(
+            aba,
+            text="Ativar RCON para integrações como Project Sphere/PalDefender",
+            variable=self.rcon_ativado,
+        ).grid(row=11, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        self._adicionar_campo(aba, 12, "Porta RCON:", self.porta_rcon)
 
         botoes = ttk.Frame(aba)
-        botoes.grid(row=9, column=0, columnspan=3, sticky="ew", pady=8)
+        botoes.grid(row=13, column=0, columnspan=3, sticky="ew", pady=8)
         ttk.Button(
             botoes, text="Salvar configuração", command=self._salvar_local
         ).pack(side="left")
@@ -357,13 +417,23 @@ class ConfiguradorPalworld:
         ).pack(side="right")
 
         rede = ttk.LabelFrame(aba, text="Conexão e acesso", padding=8)
-        rede.grid(row=10, column=0, columnspan=3, sticky="ew", pady=(5, 0))
+        rede.grid(row=14, column=0, columnspan=3, sticky="ew", pady=(5, 0))
         self.texto_enderecos = tk.Text(rede, height=6, wrap="word")
         self.texto_enderecos.pack(fill="both", expand=True)
         self.texto_enderecos.configure(state="disabled")
         ttk.Button(
             rede, text="Atualizar dados de conexão", command=self._atualizar_enderecos
         ).pack(anchor="e", pady=(6, 0))
+        ttk.Label(
+            aba,
+            text=(
+                "A API REST e o RCON são serviços administrativos: use senha forte e "
+                "não encaminhe essas portas para a Internet. Para hospedagem externa, "
+                "use as ferramentas do provedor ou uma conexão privada."
+            ),
+            wraplength=680,
+            justify="left",
+        ).grid(row=15, column=0, columnspan=3, sticky="w", pady=(8, 0))
 
     def _montar_aba_externa(self, aba: ttk.Frame) -> None:
         aba.columnconfigure(0, weight=1)
@@ -451,6 +521,251 @@ class ConfiguradorPalworld:
             wraplength=700,
             justify="left",
         ).grid(row=3, column=0, sticky="w", pady=(4, 0))
+
+    def _montar_aba_administracao(self, aba: ttk.Frame) -> None:
+        tela = tk.Canvas(aba, highlightthickness=0)
+        rolagem = ttk.Scrollbar(aba, orient="vertical", command=tela.yview)
+        tela.configure(yscrollcommand=rolagem.set)
+        tela.grid(row=0, column=0, sticky="nsew")
+        rolagem.grid(row=0, column=1, sticky="ns")
+        aba.rowconfigure(0, weight=1)
+        aba.columnconfigure(0, weight=1)
+        conteudo = ttk.Frame(tela, padding=(0, 0, 8, 8))
+        id_janela = tela.create_window((0, 0), window=conteudo, anchor="nw")
+        conteudo.bind(
+            "<Configure>",
+            lambda _evento: tela.configure(scrollregion=tela.bbox("all")),
+        )
+        tela.bind(
+            "<Configure>",
+            lambda evento: tela.itemconfigure(id_janela, width=evento.width),
+        )
+        aba = conteudo
+        aba.columnconfigure(0, weight=1)
+        aba.rowconfigure(2, weight=1)
+        painel = ttk.LabelFrame(aba, text="Administração direta (rede local)", padding=8)
+        painel.grid(row=0, column=0, sticky="ew")
+        painel.columnconfigure(1, weight=1)
+        ttk.Label(painel, text="Endereço base:").grid(
+            row=0, column=0, sticky="w", pady=3
+        )
+        ttk.Entry(painel, textvariable=self.endereco_api).grid(
+            row=0, column=1, sticky="ew", padx=6, pady=3
+        )
+        ttk.Label(painel, text="Porta REST:").grid(
+            row=0, column=2, sticky="w", padx=(8, 0), pady=3
+        )
+        ttk.Entry(painel, textvariable=self.porta_api_rest, width=8).grid(
+            row=0, column=3, sticky="w", padx=(6, 0), pady=3
+        )
+        ttk.Button(painel, text="Conectar / atualizar", command=self._atualizar_jogadores).grid(
+            row=0, column=4, padx=(8, 0), pady=3
+        )
+        ttk.Label(
+            painel,
+            text=(
+                "A senha de administrador informada na aba Meu PC é usada na autenticação. "
+                "A API REST usa HTTP Basic: prefira localhost ou uma rede privada confiável. "
+                "Por segurança, o app rejeita endereços públicos."
+            ),
+            wraplength=690,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=5, sticky="w", pady=(4, 6))
+        ttk.Label(painel, textvariable=self.status_api).grid(
+            row=2, column=0, columnspan=5, sticky="w", pady=(0, 4)
+        )
+
+        jogadores_frame = ttk.LabelFrame(aba, text="Jogadores online", padding=8)
+        jogadores_frame.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
+        jogadores_frame.columnconfigure(0, weight=1)
+        jogadores_frame.rowconfigure(0, weight=1)
+        self.tabela_jogadores = ttk.Treeview(
+            jogadores_frame,
+            columns=("nome", "nivel", "user_id"),
+            show="headings",
+            selectmode="browse",
+            height=7,
+        )
+        for coluna, titulo, largura in (
+            ("nome", "Jogador", 210),
+            ("nivel", "Nível", 70),
+            ("user_id", "ID do jogador (UserID)", 300),
+        ):
+            self.tabela_jogadores.heading(coluna, text=titulo)
+            self.tabela_jogadores.column(coluna, width=largura, anchor="w")
+        self.tabela_jogadores.grid(row=0, column=0, sticky="nsew")
+        barra = ttk.Scrollbar(
+            jogadores_frame, orient="vertical", command=self.tabela_jogadores.yview
+        )
+        barra.grid(row=0, column=1, sticky="ns")
+        self.tabela_jogadores.configure(yscrollcommand=barra.set)
+        self.tabela_jogadores.bind(
+            "<<TreeviewSelect>>", self._selecionar_jogador_admin
+        )
+
+        acoes = ttk.LabelFrame(aba, text="Ações administrativas", padding=8)
+        acoes.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        acoes.columnconfigure(1, weight=1)
+        ttk.Label(acoes, text="ID do jogador:").grid(
+            row=0, column=0, sticky="w", pady=3
+        )
+        ttk.Entry(acoes, textvariable=self.alvo_admin).grid(
+            row=0, column=1, sticky="ew", padx=6, pady=3
+        )
+        ttk.Label(acoes, text="Aviso/motivo:").grid(
+            row=1, column=0, sticky="w", pady=3
+        )
+        ttk.Entry(acoes, textvariable=self.mensagem_admin).grid(
+            row=1, column=1, sticky="ew", padx=6, pady=3
+        )
+        botoes = ttk.Frame(acoes)
+        botoes.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        ttk.Button(botoes, text="Anunciar", command=self._anunciar).pack(
+            side="left", padx=(0, 5)
+        )
+        ttk.Button(botoes, text="Expulsar", command=self._expulsar_jogador).pack(
+            side="left", padx=5
+        )
+        ttk.Button(botoes, text="Banir", command=self._banir_jogador).pack(
+            side="left", padx=5
+        )
+        ttk.Button(botoes, text="Desbanir ID", command=self._desbanir_jogador).pack(
+            side="left", padx=5
+        )
+        ttk.Button(botoes, text="Salvar mundo", command=self._salvar_mundo).pack(
+            side="left", padx=5
+        )
+        ttk.Button(
+            botoes, text="Desligar em 60 s", command=self._desligar_servidor
+        ).pack(side="left", padx=5)
+
+        integracoes = ttk.LabelFrame(
+            aba, text="Integrações e configuração guiada", padding=8
+        )
+        integracoes.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        ttk.Label(
+            integracoes,
+            text=(
+                "Project Sphere (sucessor comunitário do PalBot): bot self-hosted para "
+                "Discord; exige criar um aplicativo/bot no Discord Developer Portal e "
+                "rodar o projeto numa máquina sempre ligada."
+            ),
+            wraplength=690,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=4, sticky="w")
+        botoes_sphere = ttk.Frame(integracoes)
+        botoes_sphere.grid(row=1, column=0, columnspan=4, sticky="w", pady=4)
+        ttk.Button(
+            botoes_sphere,
+            text="Abrir versões do Project Sphere",
+            command=lambda: webbrowser.open(URL_SPHERE_RELEASES),
+        ).pack(side="left", padx=(0, 5))
+        ttk.Button(
+            botoes_sphere,
+            text="Abrir Discord Developer Portal",
+            command=lambda: webbrowser.open(URL_DISCORD_DEVELOPER),
+        ).pack(side="left", padx=5)
+        ttk.Label(integracoes, text="Application ID para convite:").grid(
+            row=2, column=0, sticky="w", pady=3
+        )
+        ttk.Entry(integracoes, textvariable=self.sphere_app_id, width=26).grid(
+            row=2, column=1, sticky="w", padx=6, pady=3
+        )
+        ttk.Button(
+            integracoes,
+            text="Abrir convite do bot no Discord",
+            command=self._abrir_convite_sphere,
+        ).grid(row=2, column=2, sticky="w", padx=4, pady=3)
+        ttk.Label(
+            integracoes,
+            text=(
+                "O convite não concede permissões automaticamente; revise as permissões "
+                "solicitadas no Discord. Este app não cria o bot nem pode obter o token "
+                "por você."
+            ),
+            wraplength=690,
+            justify="left",
+        ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(2, 5))
+        ttk.Label(integracoes, text="Pasta local do Project Sphere:").grid(
+            row=4, column=0, sticky="w", pady=3
+        )
+        ttk.Entry(integracoes, textvariable=self.pasta_sphere).grid(
+            row=4, column=1, columnspan=2, sticky="ew", padx=6, pady=3
+        )
+        ttk.Button(
+            integracoes,
+            text="Procurar...",
+            command=self._escolher_pasta_sphere,
+        ).grid(row=4, column=3, sticky="w", pady=3)
+        ttk.Label(integracoes, text="Token do bot:").grid(
+            row=5, column=0, sticky="w", pady=3
+        )
+        ttk.Entry(integracoes, textvariable=self.sphere_token, show="*").grid(
+            row=5, column=1, sticky="ew", padx=6, pady=3
+        )
+        ttk.Label(integracoes, text="Prefixo:").grid(
+            row=5, column=2, sticky="e", padx=6, pady=3
+        )
+        ttk.Entry(integracoes, textvariable=self.sphere_prefixo, width=8).grid(
+            row=5, column=3, sticky="w", pady=3
+        )
+        ttk.Button(
+            integracoes,
+            text="Gerar arquivo .env do bot",
+            command=self._salvar_configuracao_sphere,
+        ).grid(row=6, column=0, sticky="w", pady=(5, 3))
+        botoes_bot = ttk.Frame(integracoes)
+        botoes_bot.grid(row=6, column=1, columnspan=3, sticky="w", pady=(5, 3))
+        self.botao_iniciar_sphere = ttk.Button(
+            botoes_bot, text="Iniciar bot", command=self._iniciar_sphere
+        )
+        self.botao_iniciar_sphere.pack(side="left", padx=(0, 5))
+        self.botao_parar_sphere = ttk.Button(
+            botoes_bot,
+            text="Parar bot",
+            command=self._parar_sphere,
+            state="disabled",
+        )
+        self.botao_parar_sphere.pack(side="left", padx=5)
+        self.status_sphere = tk.StringVar(value="Bot do Discord parado.")
+        ttk.Label(
+            integracoes,
+            text=(
+                "A configuração salva o token em texto no arquivo .env da pasta escolhida. "
+                "Mantenha essa pasta privada e não compartilhe o arquivo."
+            ),
+            wraplength=690,
+            justify="left",
+        ).grid(row=7, column=0, columnspan=4, sticky="w", pady=(2, 0))
+        ttk.Label(integracoes, textvariable=self.status_sphere).grid(
+            row=8, column=0, columnspan=4, sticky="w", pady=(4, 0)
+        )
+
+        paldefender = ttk.LabelFrame(
+            aba, text="PalDefender (proteção e comandos via RCON)", padding=8
+        )
+        paldefender.grid(row=5, column=0, sticky="ew", pady=(8, 0))
+        ttk.Label(
+            paldefender,
+            text=(
+                "O PalDefender é um plugin comunitário para servidor dedicado Windows. "
+                "O Project Sphere oferece algumas ações PalDefender pelo Discord. "
+                "A instalação do plugin é feita separadamente; hospedagens externas "
+                "precisam aceitar plugins nativos e permitir o acesso necessário."
+            ),
+            wraplength=690,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=3, sticky="w")
+        ttk.Button(
+            paldefender,
+            text="Abrir PalDefender oficial",
+            command=lambda: webbrowser.open(URL_PALDEFENDER),
+        ).grid(row=1, column=0, sticky="w", pady=(5, 0), padx=(0, 5))
+        ttk.Button(
+            paldefender,
+            text="Abrir guia de instalação",
+            command=lambda: webbrowser.open(URL_PALDEFENDER_GUIA),
+        ).grid(row=1, column=1, sticky="w", pady=(5, 0), padx=5)
 
     def _salvar_eventos(self, eventos: list[dict[str, object]]) -> bool:
         try:
@@ -630,6 +945,311 @@ class ConfiguradorPalworld:
             )
         self.janela.after(10_000, self._verificar_agenda)
 
+    def _obter_cliente_api(self) -> ClienteRESTPalworld:
+        if not self.api_rest_ativada.get():
+            raise ValueError(
+                "Ative a API REST na aba Meu PC, salve a configuração e reinicie o servidor."
+            )
+        try:
+            porta = int(self.porta_api_rest.get())
+        except ValueError as erro:
+            raise ValueError("A porta da API REST precisa ser um número inteiro.") from erro
+        endereco = f"{self.endereco_api.get().strip().rstrip('/')}:{porta}"
+        return ClienteRESTPalworld(endereco, self.senha_administrador.get())
+
+    def _executar_acao_api(self, acao, mensagem_sucesso: str) -> None:
+        try:
+            resultado = acao(self._obter_cliente_api())
+        except (ErroAPIPalworld, OSError, ValueError) as erro:
+            self.status_api.set(f"Falha: {erro}")
+            messagebox.showerror("Administração do servidor", str(erro))
+            return
+        detalhe = f" Resposta: {resultado}" if resultado not in (None, "", {}) else ""
+        self.status_api.set(mensagem_sucesso + detalhe)
+
+    def _atualizar_jogadores(self) -> None:
+        try:
+            cliente = self._obter_cliente_api()
+            informacoes = cliente.informacoes_servidor()
+            jogadores = cliente.listar_jogadores()
+        except (ErroAPIPalworld, OSError, ValueError) as erro:
+            self.status_api.set(f"Falha ao conectar: {erro}")
+            messagebox.showerror("API REST do Palworld", str(erro))
+            return
+        for identificador in self.tabela_jogadores.get_children():
+            self.tabela_jogadores.delete(identificador)
+        for indice, jogador in enumerate(jogadores):
+            user_id = str(jogador.get("userId", ""))
+            nome = str(jogador.get("name", jogador.get("accountName", "Sem nome")))
+            nivel = str(jogador.get("level", ""))
+            iid = user_id or f"jogador-{indice}"
+            self.tabela_jogadores.insert(
+                "", "end", iid=iid, values=(nome, nivel, user_id)
+            )
+        if isinstance(informacoes, dict):
+            nome_servidor = informacoes.get("servername", "Servidor")
+            versao = informacoes.get("version", "")
+            self.status_api.set(
+                f"Conectado: {nome_servidor} {versao} — {len(jogadores)} jogador(es) online."
+            )
+        else:
+            self.status_api.set(
+                f"Conectado à API — {len(jogadores)} jogador(es) online."
+            )
+
+    def _selecionar_jogador_admin(self, _evento=None) -> None:
+        selecao = self.tabela_jogadores.selection()
+        if selecao:
+            valores = self.tabela_jogadores.item(selecao[0], "values")
+            if len(valores) >= 3 and valores[2]:
+                self.alvo_admin.set(str(valores[2]))
+
+    def _anunciar(self) -> None:
+        mensagem = self.mensagem_admin.get().strip()
+        if not mensagem:
+            messagebox.showerror("Mensagem vazia", "Escreva o aviso que será enviado.")
+            return
+        self._executar_acao_api(
+            lambda cliente: cliente.anunciar(mensagem), "Aviso enviado."
+        )
+
+    def _obter_user_id_admin(self) -> str | None:
+        user_id = self.alvo_admin.get().strip()
+        if not user_id:
+            messagebox.showerror(
+                "ID do jogador necessário",
+                "Selecione um jogador online ou informe o UserID.",
+            )
+            return None
+        if "\n" in user_id or "\r" in user_id:
+            messagebox.showerror("ID inválido", "O UserID informado é inválido.")
+            return None
+        return user_id
+
+    def _expulsar_jogador(self) -> None:
+        user_id = self._obter_user_id_admin()
+        if user_id is None or not messagebox.askyesno(
+            "Expulsar jogador", f"Deseja expulsar o jogador {user_id}?"
+        ):
+            return
+        motivo = self.mensagem_admin.get().strip()
+        self._executar_acao_api(
+            lambda cliente: cliente.expulsar(user_id, motivo),
+            f"Pedido de expulsão enviado para {user_id}.",
+        )
+
+    def _banir_jogador(self) -> None:
+        user_id = self._obter_user_id_admin()
+        if user_id is None or not messagebox.askyesno(
+            "Banir jogador",
+            f"Deseja banir {user_id}? Essa ação impede que entre novamente.",
+        ):
+            return
+        motivo = self.mensagem_admin.get().strip()
+        self._executar_acao_api(
+            lambda cliente: cliente.banir(user_id, motivo),
+            f"Pedido de banimento enviado para {user_id}.",
+        )
+
+    def _desbanir_jogador(self) -> None:
+        user_id = self._obter_user_id_admin()
+        if user_id is None or not messagebox.askyesno(
+            "Desbanir jogador", f"Deseja remover o banimento de {user_id}?"
+        ):
+            return
+        self._executar_acao_api(
+            lambda cliente: cliente.desbanir(user_id),
+            f"Pedido de desbanimento enviado para {user_id}.",
+        )
+
+    def _salvar_mundo(self) -> None:
+        self._executar_acao_api(
+            lambda cliente: cliente.salvar_mundo(),
+            "Pedido de gravação do mundo enviado.",
+        )
+
+    def _desligar_servidor(self) -> None:
+        if not messagebox.askyesno(
+            "Desligar servidor",
+            "O servidor anunciará o desligamento e será encerrado em 60 segundos. "
+            "Deseja continuar?",
+        ):
+            return
+        mensagem = self.mensagem_admin.get().strip() or "Servidor encerrando em 60 segundos."
+        self._executar_acao_api(
+            lambda cliente: cliente.agendar_desligamento(60, mensagem),
+            "Desligamento agendado para daqui a 60 segundos.",
+        )
+
+    def _escolher_pasta_sphere(self) -> None:
+        pasta = filedialog.askdirectory(
+            title="Selecione a pasta do Project Sphere"
+        )
+        if pasta:
+            self.pasta_sphere.set(pasta)
+
+    def _salvar_configuracao_sphere(self) -> None:
+        pasta = Path(self.pasta_sphere.get()).expanduser()
+        if not (pasta / "main.py").is_file():
+            messagebox.showerror(
+                "Project Sphere não encontrado",
+                "Selecione a pasta extraída do Project Sphere que contém main.py.",
+            )
+            return
+        token = self.sphere_token.get()
+        prefixo = self.sphere_prefixo.get()
+        if not token.strip() or any(caractere in token for caractere in "\r\n"):
+            messagebox.showerror("Token inválido", "Informe o token do bot do Discord.")
+            return
+        if not prefixo or any(caractere in prefixo for caractere in "\r\n"):
+            messagebox.showerror("Prefixo inválido", "Informe um prefixo sem quebras de linha.")
+            return
+        if not messagebox.askyesno(
+            "Salvar token do Discord",
+            "O token será gravado em texto no arquivo .env da pasta do Project Sphere. "
+            "Não compartilhe esse arquivo nem o envie ao GitHub. Deseja continuar?",
+        ):
+            return
+        destino = pasta / ".env"
+        try:
+            linhas_existentes = (
+                destino.read_text(encoding="utf-8").splitlines()
+                if destino.is_file()
+                else []
+            )
+            linhas = [
+                linha
+                for linha in linhas_existentes
+                if not linha.startswith(("BOT_TOKEN=", "BOT_PREFIX="))
+            ]
+            linhas.extend((f"BOT_TOKEN={token.strip()}", f"BOT_PREFIX={prefixo}"))
+            conteudo = "\n".join(linhas) + "\n"
+            backup = gravar_configuracao_segura(destino, conteudo)
+        except (OSError, UnicodeError) as erro:
+            messagebox.showerror("Falha ao salvar .env", str(erro))
+            return
+        aviso = f"Configuração salva em {destino}."
+        if backup:
+            aviso += f"\nCópia anterior: {backup.name}"
+        aviso += (
+            "\n\nInstale as dependências indicadas pelo Project Sphere antes de iniciar "
+            "o bot. Não publique o arquivo .env."
+        )
+        messagebox.showinfo("Project Sphere configurado", aviso)
+
+    def _iniciar_sphere(self) -> None:
+        if (
+            self._processo_sphere is not None
+            and self._processo_sphere.poll() is None
+        ):
+            messagebox.showinfo("Project Sphere", "O bot já está em execução.")
+            return
+        if sys.version_info < (3, 11):
+            messagebox.showerror(
+                "Python incompatível",
+                "O Project Sphere requer Python 3.11 ou superior. "
+                "Instale essa versão e abra o configurador com ela.",
+            )
+            return
+        pasta = Path(self.pasta_sphere.get()).expanduser()
+        if not (pasta / "main.py").is_file() or not (pasta / ".env").is_file():
+            messagebox.showerror(
+                "Project Sphere não configurado",
+                "Selecione uma pasta válida, gere o arquivo .env e instale as "
+                "dependências do projeto antes de iniciar o bot.",
+            )
+            return
+        try:
+            log_path = pasta / "ConfiguradorPalworld-Sphere.log"
+            self._arquivo_log_sphere = log_path.open("ab")
+            opcoes = {
+                "cwd": pasta,
+                "stdout": self._arquivo_log_sphere,
+                "stderr": subprocess.STDOUT,
+                "stdin": subprocess.DEVNULL,
+            }
+            if os.name == "nt":
+                opcoes["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            self._processo_sphere = subprocess.Popen(
+                [sys.executable, "-u", "main.py"], **opcoes
+            )
+        except OSError as erro:
+            if self._arquivo_log_sphere:
+                self._arquivo_log_sphere.close()
+                self._arquivo_log_sphere = None
+            messagebox.showerror("Falha ao iniciar Project Sphere", str(erro))
+            return
+        self.status_sphere.set(
+            f"Inicializando bot. Registro: {pasta / 'ConfiguradorPalworld-Sphere.log'}"
+        )
+        self.botao_iniciar_sphere.configure(state="disabled")
+        self.botao_parar_sphere.configure(state="normal")
+        self.janela.after(2000, self._verificar_sphere)
+
+    def _verificar_sphere(self) -> None:
+        processo = self._processo_sphere
+        if processo is None:
+            return
+        codigo_saida = processo.poll()
+        if codigo_saida is None:
+            self.status_sphere.set("Bot do Discord em execução.")
+            self.janela.after(5000, self._verificar_sphere)
+            return
+        self.status_sphere.set(
+            f"O bot encerrou com código {codigo_saida}. Consulte o arquivo de registro."
+        )
+        self._finalizar_sphere()
+
+    def _parar_sphere(self) -> None:
+        processo = self._processo_sphere
+        if processo is None or processo.poll() is not None:
+            self._finalizar_sphere()
+            return
+        if not messagebox.askyesno(
+            "Parar Project Sphere", "Deseja enviar o sinal de encerramento ao bot?"
+        ):
+            return
+        try:
+            if os.name == "nt":
+                processo.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                processo.send_signal(signal.SIGINT)
+        except OSError as erro:
+            messagebox.showerror("Não foi possível parar o bot", str(erro))
+            return
+        self.status_sphere.set("Solicitando encerramento do bot...")
+        self.janela.after(1000, self._aguardar_sphere, processo)
+
+    def _aguardar_sphere(self, processo: subprocess.Popen[bytes]) -> None:
+        if processo.poll() is None:
+            self.janela.after(1000, self._aguardar_sphere, processo)
+            return
+        self._finalizar_sphere()
+        self.status_sphere.set("Bot do Discord parado.")
+
+    def _finalizar_sphere(self) -> None:
+        self._processo_sphere = None
+        self.botao_iniciar_sphere.configure(state="normal")
+        self.botao_parar_sphere.configure(state="disabled")
+        if self._arquivo_log_sphere:
+            self._arquivo_log_sphere.close()
+            self._arquivo_log_sphere = None
+
+    def _abrir_convite_sphere(self) -> None:
+        application_id = self.sphere_app_id.get().strip()
+        if not application_id.isdigit():
+            messagebox.showerror(
+                "Application ID inválido",
+                "Crie a aplicação do seu bot no Discord Developer Portal e informe o Application ID.",
+            )
+            return
+        url = (
+            "https://discord.com/oauth2/authorize?"
+            f"client_id={quote(application_id)}"
+            "&scope=bot%20applications.commands&permissions=0"
+        )
+        webbrowser.open(url)
+
     def _adicionar_campo(
         self,
         aba: ttk.Frame,
@@ -686,6 +1306,13 @@ class ConfiguradorPalworld:
 
     def _criar_configuracao(self, pasta: Path) -> tuple[str, Path, int]:
         nome, descricao, jogadores, porta, senha, admin, plataformas = self._obter_valores()
+        try:
+            porta_api_rest = int(self.porta_api_rest.get())
+            porta_rcon = int(self.porta_rcon.get())
+        except ValueError as erro:
+            raise ValueError(
+                "As portas da API REST e do RCON precisam ser números inteiros."
+            ) from erro
         modelo, destino = self._modelo_e_base(pasta)
         conteudo = gerar_pal_world_settings(
             modelo,
@@ -696,6 +1323,10 @@ class ConfiguradorPalworld:
             senha_servidor=senha,
             senha_administrador=admin,
             plataformas=plataformas,
+            api_rest_ativada=self.api_rest_ativada.get(),
+            porta_api_rest=porta_api_rest,
+            rcon_ativado=self.rcon_ativado.get(),
+            porta_rcon=porta_rcon,
         )
         return conteudo, destino, porta
 
@@ -862,6 +1493,10 @@ class ConfiguradorPalworld:
                 senha_servidor=valores[4],
                 senha_administrador=valores[5],
                 plataformas=valores[6],
+                api_rest_ativada=self.api_rest_ativada.get(),
+                porta_api_rest=int(self.porta_api_rest.get()),
+                rcon_ativado=self.rcon_ativado.get(),
+                porta_rcon=int(self.porta_rcon.get()),
             )
         except (OSError, ValueError) as erro:
             messagebox.showerror("Configuração inválida", str(erro))
@@ -899,10 +1534,21 @@ class ConfiguradorPalworld:
         os.startfile(pasta)
 
     def _ao_fechar(self) -> None:
-        if self._processo is not None and self._processo.poll() is None:
+        servidor_ativo = self._processo is not None and self._processo.poll() is None
+        bot_ativo = (
+            self._processo_sphere is not None
+            and self._processo_sphere.poll() is None
+        )
+        if servidor_ativo or bot_ativo:
+            processos = []
+            if servidor_ativo:
+                processos.append("o servidor Palworld")
+            if bot_ativo:
+                processos.append("o bot do Discord")
+            verbo = "continuarão" if len(processos) > 1 else "continuará"
             fechar = messagebox.askyesno(
-                "Servidor em execução",
-                "O servidor continuará rodando se você fechar a janela. "
+                "Serviços em execução",
+                f"{' e '.join(processos)} {verbo} rodando se você fechar a janela. "
                 "Deseja fechar o configurador mesmo assim?",
             )
             if not fechar:
@@ -910,6 +1556,9 @@ class ConfiguradorPalworld:
         if self._arquivo_log:
             self._arquivo_log.close()
             self._arquivo_log = None
+        if self._arquivo_log_sphere:
+            self._arquivo_log_sphere.close()
+            self._arquivo_log_sphere = None
         self.janela.destroy()
 
 
