@@ -14,6 +14,32 @@ from urllib.request import urlopen
 
 URL_STEAMCMD = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
 APP_ID_PALWORLD_SERVER = "2394010"
+ESPACO_LIVRE_MINIMO = 6 * 1024**3
+
+
+def verificar_espaco_destino(
+    destino: Path, *, espaco_livre_bytes: int | None = None
+) -> int:
+    """Garante espaço para a pré-alocação de 5,35 GB observada pelo SteamCMD."""
+    pasta = destino.expanduser()
+    while not pasta.exists() and pasta != pasta.parent:
+        pasta = pasta.parent
+    if not pasta.is_dir():
+        raise NotADirectoryError(f"O destino da instalação não é uma pasta: {pasta}")
+    livre = (
+        shutil.disk_usage(pasta).free
+        if espaco_livre_bytes is None
+        else espaco_livre_bytes
+    )
+    if livre < ESPACO_LIVRE_MINIMO:
+        livre_gb = livre / 1024**3
+        minimo_gb = ESPACO_LIVRE_MINIMO / 1024**3
+        raise OSError(
+            f"Espaço insuficiente na unidade de instalação: há {livre_gb:.1f} GB "
+            f"livres; libere pelo menos {minimo_gb:.0f} GB (recomendado: 10 GB) "
+            "ou escolha uma pasta em outra unidade."
+        )
+    return livre
 
 
 def criar_comando_steamcmd(steamcmd: Path, destino: Path) -> list[str]:
@@ -76,6 +102,7 @@ def instalar_servidor_palworld(
     informar: Callable[[str], None] = lambda _mensagem: None,
 ) -> None:
     """Instala ou atualiza Palworld Dedicated Server, preservando os dados existentes."""
+    verificar_espaco_destino(destino)
     destino.mkdir(parents=True, exist_ok=True)
     comando = criar_comando_steamcmd(steamcmd, destino)
     informar("Instalando ou atualizando o servidor dedicado Palworld...")
@@ -90,15 +117,22 @@ def instalar_servidor_palworld(
     }
     if os.name == "nt":
         opcoes["creationflags"] = subprocess.CREATE_NO_WINDOW
-    processo = subprocess.Popen(comando, **opcoes)
-    if processo.stdout is not None:
-        for linha in processo.stdout:
-            linha = linha.strip()
-            if linha:
-                informar(linha[-400:])
-    codigo = processo.wait()
+    caminho_log = steamcmd.parent / "instalacao-servidor.log"
+    with caminho_log.open("a", encoding="utf-8", errors="replace") as registro:
+        processo = subprocess.Popen(comando, **opcoes)
+        if processo.stdout is not None:
+            for linha in processo.stdout:
+                registro.write(linha)
+                registro.flush()
+                linha = linha.strip()
+                if linha:
+                    informar(linha[-400:])
+        codigo = processo.wait()
     if codigo:
-        raise subprocess.CalledProcessError(codigo, comando)
+        raise RuntimeError(
+            f"O SteamCMD encerrou com código {codigo}. Consulte o registro em "
+            f"{caminho_log} e libere espaço suficiente na unidade de destino."
+        )
     if not (destino / "PalServer.exe").is_file():
         raise FileNotFoundError(
             "O SteamCMD terminou, mas não encontrei PalServer.exe na pasta escolhida."

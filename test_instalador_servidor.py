@@ -7,8 +7,10 @@ from pathlib import Path
 
 from instalador_servidor import (
     APP_ID_PALWORLD_SERVER,
+    ESPACO_LIVRE_MINIMO,
     criar_comando_steamcmd,
     extrair_steamcmd,
+    verificar_espaco_destino,
 )
 
 
@@ -43,6 +45,22 @@ class TesteInstaladorServidor(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "caminho de arquivo inválido"):
                 extrair_steamcmd(pacote, raiz / "SteamCMD")
             self.assertFalse((raiz / "fora.txt").exists())
+
+    def test_informa_quando_espaco_livre_e_insuficiente(self) -> None:
+        with tempfile.TemporaryDirectory() as temporario:
+            with self.assertRaisesRegex(OSError, "escolha uma pasta em outra unidade"):
+                verificar_espaco_destino(
+                    Path(temporario),
+                    espaco_livre_bytes=1024**3,
+                )
+
+    def test_aceita_minimo_de_espaco_livre(self) -> None:
+        with tempfile.TemporaryDirectory() as temporario:
+            livre = verificar_espaco_destino(
+                Path(temporario),
+                espaco_livre_bytes=ESPACO_LIVRE_MINIMO,
+            )
+        self.assertEqual(livre, ESPACO_LIVRE_MINIMO)
 
 
 if __name__ == "__main__":

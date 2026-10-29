@@ -19,7 +19,11 @@ from tkinter import filedialog, messagebox, ttk
 from urllib.parse import quote, urlsplit
 import webbrowser
 
-from instalador_servidor import instalar_servidor_palworld, preparar_steamcmd
+from instalador_servidor import (
+    instalar_servidor_palworld,
+    preparar_steamcmd,
+    verificar_espaco_destino,
+)
 from eventos_palworld import (
     FREQUENCIAS,
     TIPOS_EVENTO,
@@ -1424,6 +1428,7 @@ class ConfiguradorPalworld:
 
     def _executar_instalacao_servidor(self, pasta: Path) -> None:
         try:
+            verificar_espaco_destino(pasta)
             steamcmd = preparar_steamcmd(
                 CAMINHO_STEAMCMD,
                 lambda mensagem: self._fila_instalacao.put(("mensagem", mensagem)),

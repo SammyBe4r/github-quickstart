@@ -79,7 +79,7 @@ Para abrir no Windows, dê dois cliques em `INICIAR_CONFIGURADOR.bat`. Também �
 python configurador_palworld.py
 ```
 
-Na primeira instalação, abra **Meu PC**, confirme a pasta de destino e selecione **Instalar/atualizar servidor**. O aplicativo baixa o SteamCMD oficial e instala o Palworld Dedicated Server por login anônimo; não é necessário possuir ou manter o jogo cliente aberto. A mesma ação atualiza uma instalação existente. Faça cópia dos arquivos do mundo antes de atualizar. Depois, configure e use **Iniciar servidor**. O executável, os arquivos do mundo e os registros ficam na pasta escolhida.
+Na primeira instalação, abra **Meu PC**, confirme a pasta de destino e selecione **Instalar/atualizar servidor**. O aplicativo verifica o espaço livre, baixa o SteamCMD oficial e instala o Palworld Dedicated Server por login anônimo; não é necessário possuir ou manter o jogo cliente aberto. Reserve pelo menos 6 GB livres na unidade de destino (10 GB recomendados). Se o SteamCMD falhar, o registro detalhado fica em `%LOCALAPPDATA%\ConfiguradorPalworld\SteamCMD\instalacao-servidor.log`. A mesma ação atualiza uma instalação existente. Faça cópia dos arquivos do mundo antes de atualizar. Depois, configure e use **Iniciar servidor**. O executável, os arquivos do mundo e os registros ficam na pasta escolhida.
 
 O aplicativo não altera o Firewall do Windows nem configura o roteador. Para amigos fora da rede local, permita a porta UDP do jogo no firewall e encaminhe a mesma porta no roteador para o IP local do computador. A aba **Meu PC** mostra os endereços de rede que consegue detectar.
 
