@@ -63,7 +63,8 @@ O GitHub Copilot pode apoiar a exploração de alternativas, a escrita de testes
 
 ## Configurador visual do servidor
 
-O configurador abre uma janela com duas abas:
+O configurador abre uma janela com abas para o servidor local, hospedagem externa,
+eventos e administração:
 
 - **Meu PC:** selecione a pasta que contém `PalServer.exe`, configure nome, descrição, limite de jogadores, porta UDP, senhas e plataformas permitidas. Salve a configuração e inicie ou pare o servidor pela janela. Uma cópia de segurança é criada antes de substituir uma configuração existente.
 - **Outra hospedagem:** exporte `PalWorldSettings.ini` e use as informações de porta, jogadores e caminho esperadas pelo seu provedor. O arquivo pode conter senhas; envie-o somente por um canal seguro.
@@ -98,11 +99,116 @@ O configurador precisa permanecer aberto no computador que executa a agenda para
 
 Para organizar o evento dentro do jogo, use o [Creative Menu original da Oficina Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=3625287786). A página do mod informa que o servidor e o jogador que utilizará o menu precisam do mod, e que o administrador deve conceder permissão para uso em multiplayer. Os demais jogadores podem entrar sem instalar o mod. Use o item original da Oficina e confira as instruções e a compatibilidade com a versão atual antes de instalar. O menu abre com **F1**; ele também pode invocar variantes Raid.
 
+## Portal Pandora
+
+O Portal Pandora é um site separado do configurador Windows, com identidade visual
+original de fantasia cósmica e bioluminescente inspirada no nome Pandora. Ele não
+reutiliza imagens ou personagens de outras franquias.
+
+### Executar no próprio PC
+
+1. Instale Python 3.10 ou superior.
+2. Na pasta do projeto, execute `py -3 -m pip install -r requirements.txt`. Se o Python
+   não tiver o pip instalado, execute antes `py -3 -m ensurepip --upgrade`.
+3. Copie `.env.example` para `.env` e preencha as configurações do Discord e do Mercado
+   Pago. O arquivo `.env` está ignorado pelo Git e não deve ser compartilhado.
+4. Execute `INICIAR_PORTAL.bat` para abrir o site local e `INICIAR_BOT_PORTAL.bat` em
+   outra janela para habilitar os comandos da equipe.
+
+O site local fica em `http://127.0.0.1:5000` e é acessível apenas no próprio computador
+por padrão. O banco SQLite e os dados ficam no caminho configurado por
+`PORTAL_DATABASE_PATH`.
+
+### Hospedar em um provedor
+
+O repositório inclui um `Dockerfile` e um `Procfile` para provedores que aceitam Python
+ou Docker. Configure os mesmos valores de ambiente em um cofre de segredos do provedor,
+ative HTTPS e mantenha um volume persistente para o banco SQLite. O site e o processo do
+bot precisam acessar o mesmo banco; para esta versão, use somente uma instância web e
+um volume durável compartilhado. Não publique o arquivo `.env` nem o banco.
+
+Uma hospedagem pública precisa de um domínio HTTPS para o login OAuth do Discord e para
+os webhooks do Mercado Pago. Em **Redirects** do aplicativo OAuth, cadastre
+`https://SEU-DOMINIO/auth/discord`; configure `PORTAL_PUBLIC_URL` com a mesma origem.
+Não exponha diretamente as portas REST/RCON do jogo. Para conectar um portal externo ao
+servidor, use uma VPN/rede privada e informe o endereço privado em `PALWORLD_API_URL`.
+O cliente do app rejeita endereços públicos.
+
+### Discord, comandos e VIP
+
+Crie um aplicativo/bot próprio para o Portal Pandora, diferente do Project Sphere.
+Configure `identify` para login do site, ative os comandos de aplicação e convide o bot
+para o Discord. Dê a ele **Gerenciar cargos** e coloque o cargo do bot acima do cargo
+VIP na hierarquia. Preencha `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`,
+`DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_VIP_ROLE_ID` e `DISCORD_ADMIN_IDS`.
+O ID do jogador no Discord deve ser informado em `DISCORD_ADMIN_IDS` para autorizar
+comandos; nenhum usuário pode administrar apenas por entrar no site.
+
+Comandos iniciais da equipe:
+
+- `/portal-ajuda`
+- `/loja-criar` e `/loja-listar`
+- `/missao-criar`, `/missao-pendentes` e `/missao-decidir`
+- `/meta-criar`, `/meta-listar` e `/meta-atualizar`
+- `/vip-reaplicar`
+- `/servidor-status`, `/servidor-jogadores`, `/servidor-anunciar`,
+  `/servidor-expulsar`, `/servidor-banir`, `/servidor-desbanir`,
+  `/servidor-salvar` e `/servidor-desligar`
+
+O `/loja-criar` aceita `dias_vip=0` para um produto sem VIP, `-1` para cargo permanente
+ou um número positivo de dias. A expiração de cargos temporários é sincronizada pelo bot
+enquanto ele estiver em execução. O Discord precisa permitir que o bot gerencie esse
+cargo e o membro precisa estar no servidor Discord.
+
+### Mercado Pago
+
+A loja usa Checkout Pro: o comprador finaliza o pagamento no ambiente do Mercado Pago,
+e o site só ativa o VIP depois de confirmar a situação do pagamento pela API e validar
+a assinatura do webhook. Configure credenciais de **teste** primeiro e cadastre a URL
+`https://SEU-DOMINIO/webhooks/mercadopago` para notificações de pagamentos. Em produção,
+use `MERCADOPAGO_ACCESS_TOKEN` e `MERCADOPAGO_WEBHOOK_SECRET` de produção apenas no
+provedor, nunca em código ou no Git. Defina uma chave aleatória forte em
+`PORTAL_SECRET_KEY`.
+
+O recurso atual registra o pedido e concede um cargo VIP no Discord. Não concede
+vantagens nem itens dentro do Palworld. Antes de vender qualquer benefício, confira os
+termos do jogo, do provedor de hospedagem, do Discord e do Mercado Pago, além das
+obrigações legais aplicáveis.
+
+### Mapa ao vivo, missões e limites de dados
+
+Depois que o Discord autentica o jogador, o portal consulta a lista da API REST privada
+do servidor a cada 15 segundos e plota os jogadores online pelas coordenadas X/Y
+retornadas pelo jogo. O radar mostra nomes, nível e coordenadas; não mostra IP nem IDs
+da conta. Ao selecionar um marcador, o jogador vê os dados básicos da posição. Essa API
+oficial não fornece uma imagem/terreno do mapa, contador de estátuas, inventário de
+coletáveis ou conquistas por jogador. O radar é uma visualização dinâmica de
+coordenadas, não um mapa de terreno. Fonte: [API REST oficial de jogadores do
+Palworld](https://docs.palworldgame.com/api/rest-api/players/).
+
+O painel aceita comprovação de missão e os administradores analisam pelo Discord. A
+entrega de itens no jogo permanece manual. A equipe pode criar contadores, por exemplo
+`/meta-criar título:Estátuas total:50`, e registrar o valor individual com
+`/meta-atualizar`; o painel do jogador exibe `1/50`. Esses contadores são manuais nesta
+versão, não uma lista completa ou sincronizada de conquistas do jogo. A contagem
+automática de estátuas/coletáveis exige uma integração server-side que emita esses
+eventos e uma forma confiável de vincular a conta do jogo ao Discord. Essa telemetria
+não está disponível na API REST oficial e ainda não foi implementada; não instale mods
+nos jogadores sem verificar compatibilidade e segurança. Hospedagens externas precisam
+permitir a instalação do plugin server-side escolhido.
+
+O Project Sphere e o PalDefender continuam sendo componentes separados: o bot do
+Portal Pandora usa seu próprio aplicativo Discord, o Project Sphere não recebe estes
+comandos automaticamente, e o PalDefender/Creative Menu precisam ser instalados e
+configurados manualmente conforme a Oficina/mod e as permissões do provedor.
+
 ## Testes
 
-Execute os testes automatizados com:
+Para executar também os testes do Portal Pandora, instale os pacotes descritos em
+`requirements.txt`:
 
 ```bash
+python -m pip install -r requirements.txt
 python -m unittest -v
 ```
 
@@ -118,6 +224,18 @@ python -m unittest -v
 ├── test_palworld_admin.py
 ├── test_configurador_palworld.py
 ├── configurador_palworld.py
+├── portal_palworld.py
+├── bot_portal.py
+├── test_portal_palworld.py
+├── templates/portal.html
+├── static/mapa.js
+├── requirements.txt
+├── Dockerfile
+├── .dockerignore
+├── .env.example
+├── Procfile
 ├── INICIAR_CONFIGURADOR.bat
+├── INICIAR_PORTAL.bat
+├── INICIAR_BOT_PORTAL.bat
 └── README.md
 ```
