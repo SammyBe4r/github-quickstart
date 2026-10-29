@@ -1,4 +1,4 @@
-# Planejador de Base de Palworld
+# Menu, palworld server
 
 Projeto de estudo em Python inspirado no planejamento e na hospedagem de um servidor dedicado de Palworld. Inclui um planejador de materiais e um configurador visual em português para Windows.
 

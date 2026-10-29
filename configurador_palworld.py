@@ -305,7 +305,7 @@ class ConfiguradorPalworld:
         self, janela: tk.Tk, *, caminho_eventos: Path = CAMINHO_EVENTOS
     ) -> None:
         self.janela = janela
-        self.janela.title("Servidor dedicado de Palworld")
+        self.janela.title("Menu, palworld server")
         self.janela.minsize(800, 760)
         self.pasta_servidor = tk.StringVar(
             value=str(encontrar_servidor() or CAMINHO_SERVIDOR_PADRAO)
@@ -370,7 +370,7 @@ class ConfiguradorPalworld:
 
         ttk.Label(
             raiz,
-            text="Servidor dedicado de Palworld",
+            text="Menu, palworld server",
             font=("", 17, "bold"),
         ).grid(row=0, column=0, sticky="w")
         ttk.Label(
