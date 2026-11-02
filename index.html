@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Farol: um espaço gentil para organizar seus estudos e avançar no seu ritmo."
+    />
+    <meta name="theme-color" content="#f6f7f2" />
+    <title>Farol — seu próximo passo, com clareza</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <a class="brand" href="#inicio" aria-label="Farol, início">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <path d="M16 3 19.7 12.3 29 16l-9.3 3.7L16 29l-3.7-9.3L3 16l9.3-3.7L16 3Z" fill="currentColor" />
+              <circle cx="16" cy="16" r="3" fill="#F6F7F2" />
+            </svg>
+          </span>
+          <span>farol<span class="brand-period">.</span></span>
+        </a>
+
+        <p class="nav-label">SEU ESPAÇO</p>
+        <nav class="main-nav">
+          <a class="nav-link is-active" href="#inicio" aria-current="page">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></svg>
+            <span>Visão geral</span>
+          </a>
+          <a class="nav-link" href="#plano">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h12M8 12h12M8 19h12" /><path d="m3.5 5 .8.8L6 4m-2.5 8 .8.8L6 11m-2.5 8 .8.8L6 18" /></svg>
+            <span>Meu plano</span>
+          </a>
+          <a class="nav-link" href="#progresso">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m8 10V5m8 14v-7" /><path d="M2.5 19.5h19" /></svg>
+            <span>Progresso</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="streak-card">
+            <span class="streak-icon" aria-hidden="true">✦</span>
+            <div>
+              <strong>Pequenos passos contam</strong>
+              <p>Seu ritmo, suas conquistas.</p>
+            </div>
+          </div>
+          <div class="profile-button" aria-label="Perfil de Marina">
+            <span class="avatar" aria-hidden="true">M</span>
+            <span class="profile-copy"><strong>Marina Costa</strong><small>Plano gratuito</small></span>
+            <svg class="profile-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+          </div>
+        </div>
+      </aside>
+
+      <main id="conteudo" class="main-content">
+        <header class="topbar" id="inicio">
+          <p class="breadcrumb"><span>Seu espaço</span><span aria-hidden="true">/</span><strong>Visão geral</strong></p>
+          <div class="topbar-actions">
+            <span class="today-label">Sua semana em andamento</span>
+            <button class="icon-button" type="button" aria-label="Notificações">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></svg>
+              <span class="notification-dot" aria-hidden="true"></span>
+            </button>
+          </div>
+        </header>
+
+        <section class="welcome-section" aria-labelledby="welcome-title">
+          <div>
+            <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> UM DIA DE CADA VEZ</p>
+            <h1 id="welcome-title">Bom dia, Marina <span aria-hidden="true">☀</span></h1>
+            <p class="welcome-copy">Você não precisa dar conta de tudo. Só do próximo passo.</p>
+          </div>
+          <div class="week-button" aria-label="Semana atual">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path d="M8 3.5v3M16 3.5v3M3.5 9.5h17" /></svg>
+            <span>Esta semana</span>
+            <svg class="week-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+          </div>
+        </section>
+
+        <section class="focus-grid" aria-label="Seu foco e progresso">
+          <article class="focus-card" aria-labelledby="focus-title">
+            <div class="focus-decoration" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="focus-content">
+              <div class="focus-topline"><span class="focus-pill"><span aria-hidden="true">✦</span> SEU PRÓXIMO PASSO</span><span class="focus-time">25 min</span></div>
+              <p class="focus-subject">TRILHA DE UX DESIGN <span aria-hidden="true">·</span> MÓDULO 03</p>
+              <h2 id="focus-title">Leis de usabilidade<br />na prática</h2>
+              <p class="focus-description">Uma sessão curta para avançar sem pressa.</p>
+              <button class="start-button" id="start-focus" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 10 6-10 6V6Z" fill="currentColor" stroke="none" /></svg>
+                <span>Começar sessão</span>
+              </button>
+            </div>
+            <div class="focus-art" aria-hidden="true">
+              <div class="sun-halo"></div>
+              <div class="sun"></div>
+              <div class="horizon horizon-back"></div>
+              <div class="horizon horizon-front"></div>
+              <div class="focus-star star-one">✳</div>
+              <div class="focus-star star-two">·</div>
+            </div>
+            <div class="focus-session" id="focus-session" hidden aria-live="polite">
+              <span class="session-label"><span class="session-dot"></span> SESSÃO EM ANDAMENTO</span>
+              <strong class="session-timer" id="session-timer">25:00</strong>
+              <span class="session-caption">Um passo de cada vez. Você consegue.</span>
+              <div class="session-actions">
+                <button class="session-control" id="pause-focus" type="button">Pausar</button>
+                <button class="session-control session-control-secondary" id="end-focus" type="button">Encerrar</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="progress-card" id="progresso" aria-labelledby="progress-title">
+            <div class="card-heading">
+              <div>
+                <p class="section-kicker">SEU RITMO</p>
+                <h2 id="progress-title">Semana leve</h2>
+              </div>
+              <span class="progress-sparkle" aria-hidden="true">✳</span>
+            </div>
+            <p class="progress-summary"><strong>3 de 5 dias</strong><span>com um passo concluído</span></p>
+            <div class="week-days" aria-label="Progresso da semana: 3 de 5 dias concluídos">
+              <div class="day-item is-complete"><span class="day-name">SEG</span><span class="day-mark" aria-label="Concluído">✓</span></div>
+              <div class="day-item is-complete"><span class="day-name">TER</span><span class="day-mark" aria-label="Concluído">✓</span></div>
+              <div class="day-item is-complete"><span class="day-name">QUA</span><span class="day-mark" aria-label="Concluído">✓</span></div>
+              <div class="day-item is-current"><span class="day-name">QUI</span><span class="day-mark" aria-label="Hoje">•</span></div>
+              <div class="day-item"><span class="day-name">SEX</span><span class="day-mark" aria-label="Planejado"></span></div>
+            </div>
+            <div class="progress-track" role="progressbar" aria-label="Progresso semanal" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100">
+              <span></span>
+            </div>
+            <p class="progress-note">Consistência não é fazer tudo. É voltar quando puder.</p>
+          </article>
+        </section>
+
+        <section class="lower-grid" id="plano" aria-label="Plano de estudos">
+          <div class="tasks-panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">SEM COBRANÇA</p>
+                <h2>Seu plano de hoje</h2>
+              </div>
+              <span class="task-count" id="task-count">1 de 3 feitos</span>
+            </div>
+            <p class="section-description">Uma lista flexível. Marque o que fizer sentido para você.</p>
+            <div class="task-list" id="task-list">
+              <label class="task-row is-done">
+                <input type="checkbox" checked />
+                <span class="task-check" aria-hidden="true">
+                  <svg viewBox="0 0 16 16"><path d="m3.5 8 3 3 6-6" /></svg>
+                </span>
+                <span class="task-copy"><strong>Revisar anotações da aula</strong><small>Trilha de UX Design <span aria-hidden="true">·</span> 10 min</small></span>
+                <span class="task-tag tag-done">Feito</span>
+              </label>
+              <label class="task-row">
+                <input type="checkbox" data-focus-task />
+                <span class="task-check" aria-hidden="true">
+                  <svg viewBox="0 0 16 16"><path d="m3.5 8 3 3 6-6" /></svg>
+                </span>
+                <span class="task-copy"><strong>Leis de usabilidade na prática</strong><small>Trilha de UX Design <span aria-hidden="true">·</span> 25 min</small></span>
+                <span class="task-tag tag-next">A seguir</span>
+              </label>
+              <label class="task-row">
+                <input type="checkbox" />
+                <span class="task-check" aria-hidden="true">
+                  <svg viewBox="0 0 16 16"><path d="m3.5 8 3 3 6-6" /></svg>
+                </span>
+                <span class="task-copy"><strong>Anotar uma ideia que ficou</strong><small>Seu caderno <span aria-hidden="true">·</span> 5 min</small></span>
+                <span class="task-tag">Opcional</span>
+              </label>
+            </div>
+            <button class="add-task-button" id="add-task" type="button" aria-expanded="false" aria-controls="add-task-form">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              <span>Adicionar uma tarefa</span>
+            </button>
+            <form class="add-task-form" id="add-task-form" hidden>
+              <label class="sr-only" for="new-task">Nome da nova tarefa</label>
+              <input id="new-task" name="task" type="text" maxlength="60" placeholder="O que você quer fazer?" required />
+              <button type="submit">Adicionar</button>
+            </form>
+          </div>
+
+          <aside class="gentle-card" aria-labelledby="gentle-title">
+            <div class="gentle-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" fill="none"><path d="M25.5 6.5c-10.4.2-17.7 3.9-17.7 12 0 4 2.8 6.8 6.8 6.8 8.1 0 10.9-8.4 10.9-18.8Z" /><path d="M7.5 27c3.4-5.8 7.5-9.3 13-13" /></svg>
+            </div>
+            <p class="section-kicker">LEMBRETE DO FAROL</p>
+            <h2 id="gentle-title">Seu ritmo também é progresso.</h2>
+            <p>Descansar faz parte do caminho. Não existe atraso quando a jornada é sua.</p>
+            <span class="gentle-decoration" aria-hidden="true">✳</span>
+          </aside>
+        </section>
+
+        <footer class="page-footer">
+          <span>Feito para aprender sem pressa <span aria-hidden="true">✳</span></span>
+          <span>Farol <span aria-hidden="true">·</span> Seu próximo passo, com clareza</span>
+        </footer>
+        <p class="sr-only" id="announcements" role="status" aria-live="polite" aria-atomic="true"></p>
+        <p class="toast-message" id="toast-message" aria-hidden="true" hidden></p>
+      </main>
+    </div>
+  </body>
+</html>
