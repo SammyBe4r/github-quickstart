@@ -1,3 +1,11 @@
+## Projeto em destaque: Nona — pedidos de pizza
+
+Protótipo responsivo e navegável criado para o desafio de UX/UI da DIO. A proposta, o briefing, o design system, o fluxo e o orçamento estão documentados em [`prototipo/README.md`](./prototipo/README.md). [Abra o protótipo](./prototipo/index.html) para explorar o cardápio, a sacola e a finalização demonstrativa.
+
+> Baixe ou clone o repositório e abra `prototipo/index.html` em um navegador. Não há backend nem pagamento real.
+
+---
+
 <p align="center">
   <br />
 

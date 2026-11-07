@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f8f6f1">
+    <meta name="description" content="Peça pizzas artesanais da Nona, feitas com calma e ingredientes de verdade.">
+    <title>Nona — pizza feita com tempo</title>
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Nona — início">
+        <span class="brand-mark" aria-hidden="true">n.</span>
+        <span class="brand-name">nona<span class="brand-period">.</span></span>
+      </a>
+      <div class="topbar-center">
+        <span class="eyebrow">SEU PEDIDO, NO SEU TEMPO</span>
+        <button class="address-button" id="openAddress" type="button" aria-label="Editar endereço de entrega">
+          <span aria-hidden="true">⌖</span>
+          <span>Entregar em <strong id="headerAddress">Rua Harmonia, 510</strong></span>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </button>
+      </div>
+      <button class="profile-button" type="button" aria-label="Perfil de Marina">
+        <span class="profile-avatar" aria-hidden="true">M</span>
+        <span class="profile-name">Marina</span>
+        <span class="chevron" aria-hidden="true">⌄</span>
+      </button>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero" aria-labelledby="heroTitle">
+        <div class="hero-copy">
+          <span class="hero-kicker"><span class="status-dot"></span> ABERTO AGORA <span class="kicker-divider">·</span> VILA MADALENA</span>
+          <h1 id="heroTitle">Pizza boa não<br>tem <em>atalho.</em></h1>
+          <p>Fermentação longa, ingredientes de verdade e aquele sabor de domingo na casa da Nona.</p>
+          <a class="hero-link" href="#cardapio">Escolher minha pizza <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="hero-art" role="img" aria-label="Pizza artesanal de tomate, manjericão e queijo derretido">
+          <span class="hero-sticker">Massa de<br>72 horas</span>
+          <span class="hero-art-note">feito à mão<br>em São Paulo <span aria-hidden="true">✳</span></span>
+        </div>
+        <div class="hero-footer">
+          <span><span aria-hidden="true">◷</span> 25–35 min</span>
+          <span class="hero-footer-separator"></span>
+          <span><span aria-hidden="true">★</span> 4,9 <span class="muted">(mais de 1.200 pedidos)</span></span>
+        </div>
+      </section>
+
+      <div class="content-layout" id="cardapio">
+        <section class="menu-column" aria-labelledby="menuTitle">
+          <div class="menu-heading">
+            <div>
+              <span class="section-kicker">FEITO COM CARINHO, SERVIDO QUENTINHO</span>
+              <h2 id="menuTitle">O que vai ser hoje?</h2>
+            </div>
+            <label class="search-box">
+              <span aria-hidden="true">⌕</span>
+              <span class="visually-hidden">Buscar no cardápio</span>
+              <input id="searchInput" type="search" placeholder="Buscar no cardápio" autocomplete="off">
+              <kbd>/</kbd>
+            </label>
+          </div>
+
+          <nav class="category-list" id="categoryList" aria-label="Categorias do cardápio"></nav>
+
+          <div class="catalog-heading">
+            <div>
+              <h3 id="categoryTitle">Os favoritos da Nona</h3>
+              <p>Receitas de família, ingredientes da estação.</p>
+            </div>
+            <span class="catalog-count" id="resultCount" aria-live="polite"></span>
+          </div>
+          <div class="product-grid" id="productGrid"></div>
+        </section>
+
+        <aside class="order-panel" id="orderPanel" aria-labelledby="cartTitle">
+          <div class="order-panel-heading">
+            <div>
+              <span class="section-kicker">NA SUA SACOLA</span>
+              <h2 id="cartTitle">Seu pedido <span class="cart-count" id="cartCount">0</span></h2>
+            </div>
+            <span class="bag-icon" aria-hidden="true">♧</span>
+          </div>
+
+          <div class="delivery-choice">
+            <span class="delivery-icon" aria-hidden="true">♧</span>
+            <div class="delivery-copy">
+              <strong>Entrega</strong>
+              <span id="deliveryAddress">Rua Harmonia, 510 · ap. 32</span>
+            </div>
+            <button type="button" class="text-button" id="editAddress">Editar</button>
+          </div>
+
+          <div class="cart-items" id="cartItems" aria-live="polite"></div>
+
+          <form class="coupon-form" id="couponForm">
+            <label for="couponInput">Tem um cupom?</label>
+            <div class="coupon-input-row">
+              <input id="couponInput" name="coupon" placeholder="Ex.: NONA10" autocomplete="off">
+              <button type="submit">Aplicar</button>
+            </div>
+            <p class="coupon-message" id="couponMessage" aria-live="polite"></p>
+          </form>
+
+          <div class="price-summary">
+            <div><span>Subtotal</span><strong id="subtotal">R$ 0,00</strong></div>
+            <div><span>Entrega</span><strong id="deliveryFee">R$ 0,00</strong></div>
+            <div class="discount-row" id="discountRow" hidden><span>Desconto</span><strong id="discount">− R$ 0,00</strong></div>
+            <div class="total-row"><span>Total</span><strong id="total">R$ 0,00</strong></div>
+          </div>
+          <button type="button" class="checkout-button" id="checkoutButton" disabled>
+            <span>Continuar para entrega</span><span aria-hidden="true">→</span>
+          </button>
+          <p class="secure-note"><span aria-hidden="true">♡</span> Feito com carinho. Pagamento na entrega.</p>
+        </aside>
+      </div>
+      <footer class="site-footer">
+        <a class="brand footer-brand" href="#" aria-label="Nona — início"><span class="brand-mark" aria-hidden="true">n.</span><span class="brand-name">nona<span class="brand-period">.</span></span></a>
+        <span>Comida de verdade, feita sem pressa. <span aria-hidden="true">♥</span></span>
+        <span>São Paulo, SP · Todos os dias, 18h–23h</span>
+      </footer>
+    </main>
+
+    <button class="mobile-cart-button" id="mobileCartButton" type="button" aria-label="Abrir sacola" aria-expanded="false">
+      <span class="mobile-cart-icon" aria-hidden="true">♧</span>
+      <span class="mobile-cart-label">Ver sacola <strong id="mobileCartCount">0 itens</strong></span>
+      <strong id="mobileCartTotal">R$ 0,00</strong>
+      <span aria-hidden="true">→</span>
+    </button>
+    <button class="cart-backdrop" id="cartBackdrop" type="button" aria-label="Fechar sacola"></button>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <dialog class="dialog" id="addressDialog" aria-labelledby="addressDialogTitle">
+      <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Fechar" value="cancel">×</button></form>
+      <span class="dialog-icon" aria-hidden="true">⌖</span>
+      <span class="section-kicker">SÓ PRA GARANTIR</span>
+      <h2 id="addressDialogTitle">Onde a Nona te encontra?</h2>
+      <p>Informe o endereço para calcularmos o melhor tempo de entrega.</p>
+      <form id="addressForm" class="dialog-form">
+        <label for="addressInput">Endereço de entrega</label>
+        <input id="addressInput" required value="Rua Harmonia, 510 · ap. 32" autocomplete="street-address">
+        <button class="checkout-button" type="submit">Salvar endereço <span aria-hidden="true">→</span></button>
+      </form>
+    </dialog>
+
+    <dialog class="dialog" id="checkoutDialog" aria-labelledby="checkoutTitle">
+      <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Fechar" value="cancel">×</button></form>
+      <span class="dialog-icon" aria-hidden="true">✳</span>
+      <span class="section-kicker">SUA NOITE MERECE ISSO</span>
+      <h2 id="checkoutTitle">Só falta combinar a entrega.</h2>
+      <p>Preencha seus dados. Este protótipo não envia um pedido real.</p>
+      <form id="checkoutForm" class="dialog-form">
+        <label for="customerName">Como podemos te chamar?</label>
+        <input id="customerName" name="name" required placeholder="Seu nome" autocomplete="name">
+        <label for="paymentMethod">Como prefere pagar?</label>
+        <select id="paymentMethod" name="payment">
+          <option value="Cartão na entrega">Cartão na entrega</option>
+          <option value="Pix na entrega">Pix na entrega</option>
+          <option value="Dinheiro na entrega">Dinheiro na entrega</option>
+        </select>
+        <button class="checkout-button" type="submit">Fazer pedido <span aria-hidden="true">→</span></button>
+      </form>
+    </dialog>
+
+    <dialog class="dialog success-dialog" id="successDialog" aria-labelledby="successTitle">
+      <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Fechar" value="close">×</button></form>
+      <span class="success-mark" aria-hidden="true">✓</span>
+      <span class="section-kicker">PEDIDO DE DEMONSTRAÇÃO</span>
+      <h2 id="successTitle">Oba, <span id="successName">Marina</span>!</h2>
+      <p id="successDetails">Seu pedido está confirmado neste protótipo.</p>
+      <button class="checkout-button" id="finishButton" type="button">Voltar ao cardápio <span aria-hidden="true">↗</span></button>
+    </dialog>
+  </body>
+</html>
